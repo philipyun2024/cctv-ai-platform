@@ -23,6 +23,7 @@ services:
       STORAGE_PATH: /app/storage
       PUBLIC_BASE_URL: http://localhost:8000
       COOLDOWN_SECONDS: 300
+      CAMERA_CONFIG_PATH: /app/config/cameras.example.yaml
     volumes: ["event_storage:/app/storage"]
     ports: ["8000:8000"]
     depends_on:

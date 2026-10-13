@@ -9,8 +9,12 @@ class Settings(BaseSettings):
     storage_path: str = "./storage"
     public_base_url: str = "http://localhost:8000"
     cooldown_seconds: int = 300
+    camera_config_path: str = "/app/config/cameras.example.yaml"
 
-    model_config = SettingsConfigDict(env_file=".env", extra="ignore")
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        extra="ignore",
+    )
 
 
 settings = Settings()

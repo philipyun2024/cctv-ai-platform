@@ -6,3 +6,4 @@ asyncpg
 redis
 pydantic
 pydantic-settings
+PyYAML

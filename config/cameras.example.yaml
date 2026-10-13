@@ -1,0 +1,28 @@
+cameras:
+  - id: cam-001
+    site_id: demo-site
+    tenant_id: demo-tenant
+    name: Parking Lot
+    rtsp_url: rtsp://user:password@192.168.1.101/stream
+    dw_camera_id: "DW-CAMERA-ID"
+    enabled: true
+    zones:
+      - id: zone-001
+        name: Restricted Parking Area
+        zone_type: intrusion
+        points:
+          - [0.10, 0.10]
+          - [0.90, 0.10]
+          - [0.90, 0.90]
+          - [0.10, 0.90]
+        loitering_seconds: 120
+        enabled: true
+
+  - id: cam-002
+    site_id: demo-site
+    tenant_id: demo-tenant
+    name: Back Door
+    rtsp_url: rtsp://user:password@192.168.1.102/stream
+    dw_camera_id: "DW-CAMERA-ID-2"
+    enabled: false
+    zones: []
