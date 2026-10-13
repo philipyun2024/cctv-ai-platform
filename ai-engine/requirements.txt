@@ -1,0 +1,8 @@
+opencv-python
+ultralytics
+numpy
+httpx
+pydantic
+pydantic-settings
+shapely
+PyYAML
