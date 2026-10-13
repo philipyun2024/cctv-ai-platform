@@ -2,7 +2,7 @@
   "site_id": "demo-site",
   "camera": {
     "name": "Main Entrance",
-    "rtsp_url": "rtsp://admin:kiska#1911@192.168.0.161/media/video2",
+    "rtsp_url": "rtsp://remote_test:kiska_1911@192.168.0.161/media/video2",
     "dw_camera_id": "6efc643f-bcf9-32a8-f532-cc525cca0876",
     "enabled": true
   },
