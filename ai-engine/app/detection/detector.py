@@ -1,14 +1,20 @@
+import logging
+
 from ultralytics import YOLO
 
 from .types import Detection
+
+logger = logging.getLogger(__name__)
 
 
 class ObjectDetector:
     """YOLO detector with persistent tracking."""
 
     def __init__(self, model_path: str, confidence: float):
+        logger.info("Loading YOLO model path=%s", model_path)
         self.model = YOLO(model_path)
         self.confidence = confidence
+        logger.info("YOLO model loaded confidence=%.2f classes=%s", confidence, getattr(self.model, "names", {}))
 
     def detect(self, frame):
         result = self.model.track(

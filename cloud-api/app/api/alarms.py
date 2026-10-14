@@ -68,6 +68,6 @@ async def detail(alarm_id: UUID, db: AsyncSession = Depends(get_db)):
             "confidence": event.confidence,
             "timestamp": event.timestamp,
             "snapshot_url": event.snapshot_url,
-            "metadata": event.metadata,
+            "metadata": event.event_metadata,
         },
     }

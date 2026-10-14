@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
@@ -11,6 +12,7 @@ from ..services.alarm import create_alarm
 from ..services.storage import save_snapshot
 
 router = APIRouter(prefix="/api/v1/events", tags=["events"])
+logger = logging.getLogger(__name__)
 
 
 @router.post("")
@@ -19,28 +21,41 @@ async def create_event(
     db: AsyncSession = Depends(get_db),
     redis_client=Depends(get_redis),
 ):
-    event = Event(
-        tenant_id=payload.tenant_id,
-        site_id=payload.site_id,
-        camera_id=UUID(payload.camera_id),
-        zone_id=UUID(payload.zone_id) if payload.zone_id else None,
-        event_type=payload.event_type,
-        confidence=payload.confidence,
-        timestamp=payload.timestamp,
-        track_id=payload.track_id,
-        snapshot_url=save_snapshot(payload.snapshot_base64),
-        metadata=payload.metadata,
+    logger.info(
+        "Received event type=%s camera_id=%s confidence=%.3f",
+        payload.event_type, payload.camera_id, payload.confidence,
     )
-    db.add(event)
-    await db.flush()
+    try:
+        event = Event(
+            tenant_id=payload.tenant_id,
+            site_id=payload.site_id,
+            camera_id=UUID(payload.camera_id),
+            zone_id=UUID(payload.zone_id) if payload.zone_id else None,
+            event_type=payload.event_type,
+            confidence=payload.confidence,
+            timestamp=payload.timestamp,
+            track_id=payload.track_id,
+            snapshot_url=save_snapshot(payload.snapshot_base64),
+            event_metadata=payload.metadata,
+        )
+        db.add(event)
+        await db.flush()
 
-    alarm = None
-    if payload.event_type in {"intrusion", "loitering"}:
-        alarm = await create_alarm(db, event, redis_client)
+        alarm = None
+        if payload.event_type in {"intrusion", "loitering"}:
+            alarm = await create_alarm(db, event, redis_client)
 
-    await db.commit()
-    return {
-        "event_id": str(event.id),
-        "alarm_id": str(alarm.id) if alarm else None,
-        "snapshot_url": event.snapshot_url,
-    }
+        await db.commit()
+        logger.info(
+            "Event persisted event_id=%s alarm_created=%s",
+            event.id, alarm is not None,
+        )
+        return {
+            "event_id": str(event.id),
+            "alarm_id": str(alarm.id) if alarm else None,
+            "snapshot_url": event.snapshot_url,
+        }
+    except Exception:
+        await db.rollback()
+        logger.exception("Event ingestion failed type=%s camera_id=%s", payload.event_type, payload.camera_id)
+        raise

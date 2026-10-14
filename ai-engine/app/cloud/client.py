@@ -1,8 +1,11 @@
 import base64
+import logging
 from datetime import datetime, timezone
 
 import cv2
 import httpx
+
+logger = logging.getLogger(__name__)
 
 
 class CloudClient:
@@ -49,5 +52,8 @@ class CloudClient:
                 json=payload,
                 headers={"Authorization": f"Bearer {self.api_key}"},
             )
+            if response.is_error:
+                logger.error("Cloud API rejected event status=%s response=%s", response.status_code, response.text[:500])
             response.raise_for_status()
+            logger.debug("Cloud API accepted event status=%s", response.status_code)
             return response.json()

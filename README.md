@@ -88,3 +88,48 @@ python -m app.main
 
 Replace example RTSP URLs and credentials before connecting actual cameras.
 Do not commit real camera credentials into source control.
+
+
+## Debug / troubleshooting (V0.2.2)
+
+### Enable detailed logs
+
+Set these variables in the `.env` file used by Docker Compose:
+
+```dotenv
+LOG_LEVEL=DEBUG
+DEBUG_LOGGING=true
+```
+
+Restart services after changing environment variables:
+
+```bash
+docker compose up -d --build
+docker compose logs -f --tail=200 cloud-api
+```
+
+The AI engine is a separate Python process and should be started with the same logging variables in its environment. To follow its logs, use the terminal where it is running, or its container logs if you have added it as a Compose service.
+
+### Diagnostic endpoints
+
+- `GET /health`: confirms the Cloud API process responds.
+- `GET /health/db`: performs a real `SELECT 1` database check; HTTP 503 means inspect Cloud API logs and database connectivity.
+- `GET /docs`: interactive API docs.
+
+### Useful commands
+
+```bash
+docker compose ps
+docker compose logs --tail=200 postgres
+docker compose logs --tail=200 redis
+docker compose logs --tail=300 cloud-api
+curl http://localhost:8000/health
+curl http://localhost:8000/health/db
+curl http://localhost:8000/api/v1/cameras
+```
+
+### Log contents
+
+Cloud API logs request method/path/status/duration, database startup and health-check failures, camera/config import operations, event ingestion, alarm creation and cooldown suppression. AI engine logs config source, camera stream connection/reconnects, frame dimensions, YOLO model loading, detection counts at DEBUG level, event submissions, and DW Spectrum API failures. RTSP URLs and camera credentials are intentionally not printed.
+
+**Note:** `DEBUG` mode can generate many log lines and may include API response error text. Use it for short troubleshooting windows, then return to `INFO`. Never paste logs containing public IPs, usernames, camera IDs, or customer details into public forums without reviewing them.

@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 
 import httpx
@@ -12,39 +13,43 @@ from .dw.connector import DWConnector
 from .rules.intrusion import IntrusionDetector
 from .rules.loitering import LoiteringDetector
 from .rules.zone import Zone
+from .logging_config import configure_logging
+
+configure_logging()
+logger = logging.getLogger(__name__)
 
 
 async def load_cameras() -> list[dict]:
     """Load camera definitions from YAML or Cloud API."""
     mode = os.getenv("AI_CONFIG_MODE", "cloud").lower()
+    logger.info("Loading camera configuration mode=%s", mode)
 
     if mode == "yaml":
-        path = os.getenv(
-            "AI_CONFIG_PATH",
-            "../config/cameras.example.yaml",
-        )
-        return load_cameras_from_yaml(path)
+        path = os.getenv("AI_CONFIG_PATH", "../config/cameras.example.yaml")
+        cameras = load_cameras_from_yaml(path)
+        logger.info("Loaded %s cameras from YAML config path=%s", len(cameras), path)
+        return cameras
 
     async with httpx.AsyncClient(timeout=10) as client:
-        response = await client.get(
-            f"{settings.cloud_api_url}/api/v1/cameras",
-        )
+        response = await client.get(f"{settings.cloud_api_url}/api/v1/cameras")
         response.raise_for_status()
         cameras = response.json()
+        logger.info("Cloud API returned %s cameras", len(cameras))
 
         if settings.ai_camera_id:
-            cameras = [
-                camera for camera in cameras
-                if camera["id"] == settings.ai_camera_id
-            ]
+            cameras = [camera for camera in cameras if camera["id"] == settings.ai_camera_id]
+            logger.info("Filtered cameras by AI_CAMERA_ID; remaining=%s", len(cameras))
 
         for camera in cameras:
             zone_response = await client.get(
-                f"{settings.cloud_api_url}"
-                f"/api/v1/cameras/{camera['id']}/zones",
+                f"{settings.cloud_api_url}/api/v1/cameras/{camera['id']}/zones"
             )
             zone_response.raise_for_status()
             camera["zones"] = zone_response.json()
+            logger.debug(
+                "Loaded %s zones for camera=%s",
+                len(camera["zones"]), camera.get("name", camera["id"]),
+            )
 
         return cameras
 
@@ -93,7 +98,9 @@ def build_rules(
 
 
 async def process_camera(camera: dict) -> None:
-    stream = CameraStream(camera["rtsp_url"])
+    camera_name = camera.get("name", str(camera.get("id", "unknown")))
+    logger.info("Starting camera worker camera=%s id=%s", camera_name, camera.get("id"))
+    stream = CameraStream(camera["rtsp_url"], camera_name)
     detector = ObjectDetector(
         settings.model_path,
         settings.confidence,
@@ -112,23 +119,31 @@ async def process_camera(camera: dict) -> None:
 
     first_frame = None
     while first_frame is None:
-        first_frame = stream.read()
-        await asyncio.sleep(0.1)
+        try:
+            first_frame = stream.read()
+        except Exception:
+            logger.exception("Waiting for camera stream camera=%s; retrying", camera_name)
+        if first_frame is None:
+            await asyncio.sleep(2)
 
     frame_height, frame_width = first_frame.shape[:2]
-    rules = build_rules(
-        camera,
-        frame_width,
-        frame_height,
-    )
+    rules = build_rules(camera, frame_width, frame_height)
+    logger.info("Camera initialized camera=%s frame=%sx%s zones=%s", camera_name, frame_width, frame_height, len(rules))
 
     while True:
-        frame = stream.read()
+        try:
+            frame = stream.read()
+        except Exception:
+            logger.exception("Stream read exception camera=%s", camera_name)
+            await asyncio.sleep(2)
+            continue
         if frame is None:
             await asyncio.sleep(0.5)
             continue
 
-        for detection in detector.detect(frame):
+        detections = detector.detect(frame)
+        logger.debug("Frame processed camera=%s detections=%s", camera_name, len(detections))
+        for detection in detections:
             for rule in rules:
                 event_type = None
                 config = rule["config"]
@@ -169,36 +184,38 @@ async def process_camera(camera: dict) -> None:
                             "class_name": detection.class_name,
                         },
                     )
-                    print("AI event sent:", result)
+                    logger.info("AI event submitted camera=%s type=%s event_id=%s alarm_id=%s", camera_name, event_type, result.get("event_id"), result.get("alarm_id"))
 
                     if (
                         settings.dw_enabled
                         and camera.get("dw_camera_id")
                     ):
-                        await dw.send_event(
+                        logger.debug("Sending DW Spectrum event camera=%s type=%s", camera_name, event_type)
+                        dw_result = await dw.send_event(
                             camera["dw_camera_id"],
                             event_type.title(),
                             f"AI {event_type} detected.",
                         )
-                except Exception as exc:
-                    print("Unable to send event:", exc)
+                        logger.info("DW Spectrum event sent camera=%s result_type=%s", camera_name, type(dw_result).__name__)
+                except Exception:
+                    logger.exception("Unable to submit AI event camera=%s type=%s", camera_name, event_type)
 
         await asyncio.sleep(settings.ai_poll_interval)
 
 
 async def main() -> None:
+    logger.info("AI engine starting model=%s confidence=%.2f poll_interval=%.2f", settings.model_path, settings.confidence, settings.ai_poll_interval)
     cameras = [
         camera for camera in await load_cameras()
         if camera.get("enabled", True)
     ]
 
     if not cameras:
-        print("No enabled cameras found.")
+        logger.error("No enabled cameras found. Check Cloud API database or camera YAML configuration.")
         return
 
-    await asyncio.gather(
-        *(process_camera(camera) for camera in cameras)
-    )
+    logger.info("Launching workers for %s enabled cameras", len(cameras))
+    await asyncio.gather(*(process_camera(camera) for camera in cameras))
 
 
 if __name__ == "__main__":

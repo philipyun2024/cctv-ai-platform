@@ -30,4 +30,4 @@ class EventCreate(BaseModel):
     track_id: int | None = None
     zone_id: str | None = None
     snapshot_base64: str | None = None
-    metadata: dict[str, Any] = {}
+    metadata: dict[str, Any] = Field(default_factory=dict)

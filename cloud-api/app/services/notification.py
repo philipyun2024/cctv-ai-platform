@@ -1,10 +1,11 @@
+import logging
+
+logger = logging.getLogger(__name__)
+
+
 class ConsoleNotificationProvider:
     async def send(self, subject: str, body: str):
-        print("=" * 60)
-        print("CCTV NOTIFICATION")
-        print(subject)
-        print(body)
-        print("=" * 60)
+        logger.info("Notification provider=console subject=%s body=%s", subject, body)
 
 
 async def notify_alarm(alarm, event):

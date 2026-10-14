@@ -1,3 +1,4 @@
+import logging
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -9,6 +10,7 @@ from ..db.models import Camera, Zone
 from ..schemas import CameraCreate, ZoneCreate
 
 router = APIRouter(prefix="/api/v1/cameras", tags=["cameras"])
+logger = logging.getLogger(__name__)
 
 
 def serialize_camera(camera):
@@ -36,6 +38,7 @@ def serialize_zone(zone):
 
 @router.post("")
 async def create_camera(payload: CameraCreate, db: AsyncSession = Depends(get_db)):
+    logger.info("Creating camera name=%s site_id=%s", payload.name, payload.site_id)
     camera = Camera(**payload.model_dump())
     db.add(camera)
     await db.commit()
@@ -46,7 +49,9 @@ async def create_camera(payload: CameraCreate, db: AsyncSession = Depends(get_db
 @router.get("")
 async def list_cameras(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Camera).order_by(Camera.created_at.desc()))
-    return [serialize_camera(camera) for camera in result.scalars()]
+    cameras = [serialize_camera(camera) for camera in result.scalars()]
+    logger.debug("Listed cameras count=%s", len(cameras))
+    return cameras
 
 
 @router.post("/{camera_id}/zones")
@@ -58,6 +63,7 @@ async def create_zone(
     camera = await db.get(Camera, camera_id)
     if camera is None:
         raise HTTPException(status_code=404, detail="Camera not found")
+    logger.info("Creating zone camera_id=%s name=%s type=%s", camera_id, payload.name, payload.zone_type)
     zone = Zone(camera_id=camera_id, **payload.model_dump())
     db.add(zone)
     await db.commit()

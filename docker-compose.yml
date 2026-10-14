@@ -24,6 +24,8 @@ services:
       PUBLIC_BASE_URL: http://localhost:8000
       COOLDOWN_SECONDS: 300
       CAMERA_CONFIG_PATH: /app/config/cameras.example.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DEBUG_LOGGING: ${DEBUG_LOGGING:-false}
     volumes: ["event_storage:/app/storage"]
     ports: ["8000:8000"]
     depends_on:

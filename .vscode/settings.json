@@ -1,0 +1,6 @@
+{
+    "compareFolders.excludeFilter": [
+        "/.env",
+        "/config\\cameras.json"
+    ]
+}
