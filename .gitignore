@@ -1,0 +1,4 @@
+# Ignore python virtual environments
+.venv/
+yolo11n_openvino_model/
+yolo11n.pt
