@@ -1,3 +1,4 @@
+# TODO: Remove always inside track_id from active_tracks when the track is no longer detected in the frame. This will prevent memory leaks and ensure that the active_tracks set only contains currently active tracks.
 class IntrusionDetector:
     def __init__(self, zone):
         self.zone = zone

@@ -9,7 +9,7 @@ cameras:
     zones:
       - id: zone-001
         name: Restricted Parking Area
-        zone_type: intrusion
+        zone_type: loitering
         points:
           - [0.10, 0.10]
           - [0.90, 0.10]
@@ -17,7 +17,15 @@ cameras:
           - [0.10, 0.90]
         loitering_seconds: 30
         enabled: true
-
+      - id: zone-002
+        name: Main Entrance intrusion
+        zone_type: intrusion
+        points:
+          - [0.10, 0.10]
+          - [0.90, 0.10]
+          - [0.90, 0.90]
+          - [0.10, 0.90]
+        enabled: true
   - id: cam-002
     site_id: demo-site
     tenant_id: demo-tenant

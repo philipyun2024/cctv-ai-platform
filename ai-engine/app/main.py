@@ -19,6 +19,61 @@ configure_logging()
 logger = logging.getLogger(__name__)
 
 
+import logging
+import json
+import os
+
+logger = logging.getLogger(__name__)
+
+
+def debug_ai_engine_config(config, cameras=None):
+    """Print AI Engine configuration and all loaded cameras."""
+    logger.debug("========== AI ENGINE CONFIG ==========")
+
+    if hasattr(config, "model_dump"):
+        config_data = config.model_dump(mode="json")
+    elif hasattr(config, "dict") and callable(config.dict):
+        config_data = config.dict()
+    elif isinstance(config, dict):
+        config_data = config
+    elif hasattr(config, "__dict__"):
+        config_data = vars(config)
+    else:
+        config_data = str(config)
+
+    logger.debug(
+        "AI Engine config:\n%s",
+        json.dumps(config_data, indent=2, default=str),
+    )
+
+    logger.debug("========== ENVIRONMENT SETTINGS ==========")
+    logger.debug("AI_CONFIG_MODE=%s", os.getenv("AI_CONFIG_MODE"))
+    logger.debug("CLOUD_API_URL=%s", os.getenv("CLOUD_API_URL"))
+
+    if cameras is not None:
+        logger.debug("========== ALL CAMERAS ==========")
+
+        camera_data = []
+        for camera in cameras:
+            if hasattr(camera, "model_dump"):
+                camera_data.append(camera.model_dump(mode="json"))
+            elif hasattr(camera, "dict") and callable(camera.dict):
+                camera_data.append(camera.dict())
+            elif isinstance(camera, dict):
+                camera_data.append(camera)
+            elif hasattr(camera, "__dict__"):
+                camera_data.append(vars(camera))
+            else:
+                camera_data.append(str(camera))
+
+        logger.debug(
+            "Camera count: %d\n%s",
+            len(camera_data),
+            json.dumps(camera_data, indent=2, default=str),
+        )
+
+    logger.debug("========== END DEBUG CONFIG ==========")
+
 async def load_cameras() -> list[dict]:
     """Load camera definitions from YAML or Cloud API."""
     mode = os.getenv("AI_CONFIG_MODE", "cloud").lower()
@@ -36,8 +91,10 @@ async def load_cameras() -> list[dict]:
         cameras = response.json()
         logger.info("Cloud API returned %s cameras", len(cameras))
 
+        debug_ai_engine_config(settings, cameras)
+
         if settings.ai_camera_id:
-            cameras = [camera for camera in cameras if camera["id"] == settings.ai_camera_id]
+            cameras = [camera for camera in cameras if camera["dw_camera_id"] == settings.ai_camera_id]
             logger.info("Filtered cameras by AI_CAMERA_ID; remaining=%s", len(cameras))
 
         for camera in cameras:
@@ -142,7 +199,7 @@ async def process_camera(camera: dict) -> None:
             continue
 
         detections = detector.detect(frame)
-        logger.debug("Frame processed camera=%s detections=%s", camera_name, len(detections))
+        logger.debug("Frame processed camera=%s detections=%s \ndetails:\n%s", camera_name, len(detections), json.dumps(detections, indent=2, default=str))
         for detection in detections:
             for rule in rules:
                 event_type = None

@@ -1,4 +1,6 @@
 # Ignore python virtual environments
+ai-engine/.venv/
 .venv/
+venv/
 yolo11n_openvino_model/
-yolo11n.pt
+*.pt
