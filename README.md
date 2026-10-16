@@ -18,12 +18,23 @@ Open:
 - Swagger: http://localhost:8000/docs
 - Web: http://localhost:3000
 
-The AI engine is intended for a site GPU host. Configure `ai-engine/.env` and run:
+The AI Engine runs directly on Windows, outside Docker. It reads cameras/zones from Cloud API by default, pulls each RTSP substream, and sends detected events back to Cloud API. Import the camera configuration after startup and replace sample RTSP URLs/credentials before connecting real cameras.
 
-```bash
-pip install -r requirements.txt
+```powershell
+# In the project root, start only the Docker services:
+docker compose ps
+
+# In a separate PowerShell window, run the AI Engine locally:
+cd ai-engine
+py -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
+$env:AI_CONFIG_MODE = "cloud"
+$env:CLOUD_API_URL = "http://localhost:8000"
 python -m app.main
 ```
+
+If PowerShell blocks virtual-environment activation, use Command Prompt and run `.venv\Scripts\activate.bat` instead. Ensure Python dependencies and a compatible PyTorch/Ultralytics setup are installed on the Windows machine.
 
 ## V0.2 features
 

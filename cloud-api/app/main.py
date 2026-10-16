@@ -4,6 +4,7 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from sqlalchemy import text
 
@@ -81,6 +82,20 @@ async def log_requests(request: Request, call_next):
         request.method, request.url.path, response.status_code, elapsed_ms,
     )
     return response
+
+
+# Added after the request logger so CORS is the outermost user middleware and
+# adds CORS headers to normal responses, preflight requests, and error responses.
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:3000",
+        "http://127.0.0.1:3000",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 
 @app.get("/")

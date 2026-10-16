@@ -1,5 +1,7 @@
 import logging
 
+import os
+from pathlib import Path
 from ultralytics import YOLO
 
 from .types import Detection
@@ -11,8 +13,13 @@ class ObjectDetector:
     """YOLO detector with persistent tracking."""
 
     def __init__(self, model_path: str, confidence: float):
-        logger.info("Loading YOLO model path=%s", model_path)
-        self.model = YOLO(model_path)
+        
+        # Automatically target the directory where this script is saved
+        BASE_DIR = Path(__file__).resolve().parent
+        ov_model_path = os.path.join(BASE_DIR.parent.parent, model_path)
+        logger.info("Loading YOLO model path=%s", ov_model_path)
+
+        self.model = YOLO(ov_model_path)
         self.confidence = confidence
         logger.info("YOLO model loaded confidence=%.2f classes=%s", confidence, getattr(self.model, "names", {}))
 
