@@ -1,0 +1,42 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: cctv
+      POSTGRES_USER: cctv
+      POSTGRES_PASSWORD: cctv_password
+    ports: ["5432:5432"]
+    volumes: ["postgres_data:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cctv -d cctv"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+  cloud-api:
+    build: ./cloud-api
+    environment:
+      DATABASE_URL: postgresql+asyncpg://cctv:cctv_password@postgres:5432/cctv
+      REDIS_URL: redis://redis:6379/0
+      STORAGE_PATH: /app/storage
+      PUBLIC_BASE_URL: http://localhost:8000
+      COOLDOWN_SECONDS: 300
+      CAMERA_CONFIG_PATH: /app/config/cameras.example.yaml
+      LOG_LEVEL: ${LOG_LEVEL:-INFO}
+      DEBUG_LOGGING: ${DEBUG_LOGGING:-false}
+    volumes: ["event_storage:/app/storage"]
+    ports: ["8000:8000"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+  web:
+    build: ./web
+    ports: ["3000:3000"]
+    depends_on: [cloud-api]
+volumes:
+  postgres_data:
+  event_storage:
