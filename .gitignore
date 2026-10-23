@@ -4,3 +4,16 @@ ai-engine/.venv/
 venv/
 yolo11n_openvino_model/
 *.pt
+# Local secrets/configuration
+.env
+ai-engine/.env
+
+# Python generated files
+__pycache__/
+*.py[cod]
+
+# Generated YOLO/OpenVINO models
+yolo26n_openvino_model/
+ai-engine/yolo26n_openvino_model/
+yolo26n.pt
+ai-engine/yolo26n.pt

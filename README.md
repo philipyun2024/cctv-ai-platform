@@ -1,11 +1,11 @@
-# CCTV AI Remote Monitoring Platform V0.2
+# CCTV AI Remote Monitoring Platform V0.3.0 — YOLO26 Windows AI Engine
 
 Runnable MVP built around an existing DW Spectrum / MVS installation.
 
 ## Flow
 
 IP Camera -> DW Spectrum (main stream)
-IP Camera -> AI Engine (sub stream) -> YOLO/Tracking -> Intrusion/Loitering -> Cloud API -> PostgreSQL/Redis -> Alarm -> Notification/DW Generic Event -> Web Portal
+IP Camera -> AI Engine (sub stream) -> YOLO26n/OpenVINO + ByteTrack -> Intrusion/Loitering -> Cloud API -> PostgreSQL/Redis -> Alarm -> Notification/DW Generic Event -> Web Portal
 
 ## Start
 
@@ -29,8 +29,15 @@ cd ai-engine
 py -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
+# Export the lightweight YOLO26n model to Intel OpenVINO format (first run downloads weights)
+python export.py
 $env:AI_CONFIG_MODE = "cloud"
 $env:CLOUD_API_URL = "http://localhost:8000"
+$env:MODEL_PATH = "yolo26n_openvino_model"
+$env:IMAGE_SIZE = "416"
+$env:DEVICE = "cpu"
+$env:TRACKER = "bytetrack.yaml"
+$env:DETECTION_CLASSES = "0,2"
 python -m app.main
 ```
 
@@ -144,3 +151,28 @@ curl http://localhost:8000/api/v1/cameras
 Cloud API logs request method/path/status/duration, database startup and health-check failures, camera/config import operations, event ingestion, alarm creation and cooldown suppression. AI engine logs config source, camera stream connection/reconnects, frame dimensions, YOLO model loading, detection counts at DEBUG level, event submissions, and DW Spectrum API failures. RTSP URLs and camera credentials are intentionally not printed.
 
 **Note:** `DEBUG` mode can generate many log lines and may include API response error text. Use it for short troubleshooting windows, then return to `INFO`. Never paste logs containing public IPs, usernames, camera IDs, or customer details into public forums without reviewing them.
+
+
+## V0.3.0 — YOLO26n on Windows / Intel CPU
+
+The AI Engine remains a native Windows Python process. It is **not** a Docker Compose service. Docker continues to run PostgreSQL, Redis, Cloud API, and the Web Dashboard only.
+
+### Recommended setup for Intel Core i3-14100
+
+1. Install 64-bit Python 3.11 or 3.12 and create the `ai-engine/.venv` virtual environment.
+2. From `ai-engine`, install dependencies with `python -m pip install -r requirements.txt`.
+3. Run `python export.py` once to download `yolo26n.pt` and export `yolo26n_openvino_model` at 416-pixel input size.
+4. Keep the local `ai-engine/.env` file and change `MODEL_PATH=yolo26n_openvino_model`; set `IMAGE_SIZE=416`, `DEVICE=cpu`, `TRACKER=bytetrack.yaml`, and `DETECTION_CLASSES=0,2`.
+5. Start the engine with `python -m app.main`.
+
+`DETECTION_CLASSES=0,2` detects COCO person and car classes. Use `DETECTION_CLASSES=0` for person-only intrusion detection. ByteTrack maintains object IDs across frames; the existing polygon zone rules still decide whether an intrusion or loitering event occurs.
+
+For CPU troubleshooting, first use one camera and a substream (for example 640x360 or 704x480), then check DEBUG logs. OpenVINO may improve CPU inference speed; actual FPS depends on stream resolution, camera count, and scene complexity. The code uses `asyncio.to_thread()` for stream reads and inference so one blocking read/inference is less likely to stall other async camera workers.
+
+### Model test
+
+From the `ai-engine` directory: `python test_openvino.py path\to\test-image.jpg`. If no path is provided, the script uses a public sample image and requires internet access.
+
+### Secret handling
+
+Do not commit `.env` files or real RTSP credentials. The source archive intentionally excludes local `.env` files and replaces sample camera URLs with placeholders. Preserve your own local `.env` separately and update only the model settings above.

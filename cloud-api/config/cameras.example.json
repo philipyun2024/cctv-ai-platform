@@ -2,7 +2,7 @@
   "site_id": "demo-site",
   "camera": {
     "name": "Parking Lot",
-    "rtsp_url": "rtsp://user:password@192.168.1.101/stream",
+    "rtsp_url": "rtsp://USERNAME:PASSWORD@CAMERA_IP:554/stream1",
     "dw_camera_id": "DW-CAMERA-ID",
     "enabled": true
   },

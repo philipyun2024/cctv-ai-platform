@@ -1,6 +1,8 @@
 import asyncio
+import json
 import logging
 import os
+from urllib.parse import urlsplit, urlunsplit
 
 import httpx
 
@@ -19,11 +21,25 @@ configure_logging()
 logger = logging.getLogger(__name__)
 
 
-import logging
-import json
-import os
-
-logger = logging.getLogger(__name__)
+def _redact_debug_value(value, key=""):
+    """Mask secrets and RTSP URL credentials in debug output."""
+    if any(token in key.lower() for token in ("password", "secret", "token", "api_key", "authorization")):
+        return "***REDACTED***"
+    if isinstance(value, dict):
+        return {str(k): _redact_debug_value(v, str(k)) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_redact_debug_value(item) for item in value]
+    if isinstance(value, str) and value.lower().startswith(("rtsp://", "rtsps://")):
+        try:
+            parsed = urlsplit(value)
+            if parsed.username is not None or parsed.password is not None:
+                host = parsed.hostname or ""
+                if parsed.port:
+                    host = f"{host}:{parsed.port}"
+                return urlunsplit((parsed.scheme, f"***:***@{host}", parsed.path, "", ""))
+        except ValueError:
+            return "***REDACTED RTSP URL***"
+    return value
 
 
 def debug_ai_engine_config(config, cameras=None):
@@ -43,7 +59,7 @@ def debug_ai_engine_config(config, cameras=None):
 
     logger.debug(
         "AI Engine config:\n%s",
-        json.dumps(config_data, indent=2, default=str),
+        json.dumps(_redact_debug_value(config_data), indent=2, default=str),
     )
 
     logger.debug("========== ENVIRONMENT SETTINGS ==========")
@@ -69,7 +85,7 @@ def debug_ai_engine_config(config, cameras=None):
         logger.debug(
             "Camera count: %d\n%s",
             len(camera_data),
-            json.dumps(camera_data, indent=2, default=str),
+            json.dumps(_redact_debug_value(camera_data), indent=2, default=str),
         )
 
     logger.debug("========== END DEBUG CONFIG ==========")
@@ -80,9 +96,10 @@ async def load_cameras() -> list[dict]:
     logger.info("Loading camera configuration mode=%s", mode)
 
     if mode == "yaml":
-        path = os.getenv("AI_CONFIG_PATH", "../config/cameras.example.yaml")
+        path = os.getenv("AI_CONFIG_PATH", "../cloud-api/config/cameras.example.yaml")
         cameras = load_cameras_from_yaml(path)
         logger.info("Loaded %s cameras from YAML config path=%s", len(cameras), path)
+        debug_ai_engine_config(settings, cameras)
         return cameras
 
     async with httpx.AsyncClient(timeout=10) as client:
@@ -91,12 +108,8 @@ async def load_cameras() -> list[dict]:
         cameras = response.json()
         logger.info("Cloud API returned %s cameras", len(cameras))
 
-        debug_ai_engine_config(settings, cameras)
-
-        if settings.ai_camera_id:
-            cameras = [camera for camera in cameras if camera["dw_camera_id"] == settings.ai_camera_id]
-            logger.info("Filtered cameras by AI_CAMERA_ID; remaining=%s", len(cameras))
-
+        # Fetch zones for every camera first so DEBUG output can show the complete
+        # configuration even when AI_CAMERA_ID is set to run only one worker.
         for camera in cameras:
             zone_response = await client.get(
                 f"{settings.cloud_api_url}/api/v1/cameras/{camera['id']}/zones"
@@ -107,6 +120,16 @@ async def load_cameras() -> list[dict]:
                 "Loaded %s zones for camera=%s",
                 len(camera["zones"]), camera.get("name", camera["id"]),
             )
+
+        # Log all cameras with their zones before applying the worker filter.
+        debug_ai_engine_config(settings, cameras)
+
+        if settings.ai_camera_id:
+            cameras = [
+                camera for camera in cameras
+                if camera.get("dw_camera_id") == settings.ai_camera_id
+            ]
+            logger.info("Filtered cameras by AI_CAMERA_ID; remaining=%s", len(cameras))
 
         return cameras
 
@@ -158,9 +181,19 @@ async def process_camera(camera: dict) -> None:
     camera_name = camera.get("name", str(camera.get("id", "unknown")))
     logger.info("Starting camera worker camera=%s id=%s", camera_name, camera.get("id"))
     stream = CameraStream(camera["rtsp_url"], camera_name)
+    class_ids = [
+        int(value.strip())
+        for value in settings.detection_classes.split(",")
+        if value.strip()
+    ]
     detector = ObjectDetector(
-        settings.model_path,
-        settings.confidence,
+        model_path=settings.model_path,
+        confidence=settings.confidence,
+        image_size=settings.image_size,
+        device=settings.device,
+        tracker=settings.tracker,
+        classes=class_ids,
+        max_detections=settings.max_detections,
     )
     cloud = CloudClient(
         settings.cloud_api_url,
@@ -177,7 +210,7 @@ async def process_camera(camera: dict) -> None:
     first_frame = None
     while first_frame is None:
         try:
-            first_frame = stream.read()
+            first_frame = await asyncio.to_thread(stream.read)
         except Exception:
             logger.exception("Waiting for camera stream camera=%s; retrying", camera_name)
         if first_frame is None:
@@ -189,7 +222,7 @@ async def process_camera(camera: dict) -> None:
 
     while True:
         try:
-            frame = stream.read()
+            frame = await asyncio.to_thread(stream.read)
         except Exception:
             logger.exception("Stream read exception camera=%s", camera_name)
             await asyncio.sleep(2)
@@ -198,7 +231,7 @@ async def process_camera(camera: dict) -> None:
             await asyncio.sleep(0.5)
             continue
 
-        detections = detector.detect(frame)
+        detections = await asyncio.to_thread(detector.detect, frame)
         logger.debug("Frame processed camera=%s detections=%s \ndetails:\n%s", camera_name, len(detections), json.dumps(detections, indent=2, default=str))
         for detection in detections:
             for rule in rules:
@@ -261,7 +294,17 @@ async def process_camera(camera: dict) -> None:
 
 
 async def main() -> None:
-    logger.info("AI engine starting model=%s confidence=%.2f poll_interval=%.2f", settings.model_path, settings.confidence, settings.ai_poll_interval)
+    logger.info(
+        "AI engine starting model=%s confidence=%.2f imgsz=%s device=%s "
+        "tracker=%s classes=%s poll_interval=%.2f",
+        settings.model_path,
+        settings.confidence,
+        settings.image_size,
+        settings.device,
+        settings.tracker,
+        settings.detection_classes,
+        settings.ai_poll_interval,
+    )
     cameras = [
         camera for camera in await load_cameras()
         if camera.get("enabled", True)

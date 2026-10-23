@@ -30,7 +30,7 @@ cameras:
     site_id: demo-site
     tenant_id: demo-tenant
     name: Back Door
-    rtsp_url: rtsp://user:password@192.168.1.102/stream
+    rtsp_url: rtsp://USERNAME:PASSWORD@CAMERA_IP:554/stream1
     dw_camera_id: "DW-CAMERA-ID-2"
     enabled: false
     zones: []

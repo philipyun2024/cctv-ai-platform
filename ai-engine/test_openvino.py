@@ -1,22 +1,25 @@
-import os
+"""Quick smoke test for the exported YOLO26n OpenVINO model.
+
+Usage from the ai-engine directory:
+    python test_openvino.py path\to\test-image.jpg
+If no image is supplied, a public Ultralytics sample image is used.
+"""
+import sys
+from pathlib import Path
+
 from ultralytics import YOLO
 
-# 1. Path to your exported OpenVINO model directory
-# (Ultralytics creates a folder named after your original model + _openvino_model)
-model_path = "yolo11n_openvino_model"
+MODEL_PATH = Path("yolo26n_openvino_model")
+SOURCE = sys.argv[1] if len(sys.argv) > 1 else "https://ultralytics.com/images/bus.jpg"
 
-if not os.path.exists(model_path):
-    print(f"❌ Could not find OpenVINO model folder at: {model_path}")
-    print("Please make sure your export step completed successfully.")
-else:
-    # 2. Load the optimized OpenVINO model
-    print("🔄 Loading OpenVINO model...")
-    model = YOLO(model_path)
+if not MODEL_PATH.exists():
+    raise SystemExit(
+        f"Model folder not found: {MODEL_PATH}. Run `python export.py` first."
+    )
 
-    # 3. Run inference on a sample image (or a sample URL)
-    print("🚀 Running benchmark inference...")
-    results = model("https://ultralytics.com", device="cpu")
-
-    # 4. Print results to console
-    for result in results:
-        print(f"✅ Success! Detected {len(result.boxes)} objects in the image.")
+print(f"Loading OpenVINO model: {MODEL_PATH}")
+model = YOLO(str(MODEL_PATH))
+print(f"Running inference on: {SOURCE}")
+results = model.predict(source=SOURCE, imgsz=416, device="intel:cpu", verbose=False)
+for result in results:
+    print(f"Inference successful. Detections: {len(result.boxes)}")
