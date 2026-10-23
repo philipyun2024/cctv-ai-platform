@@ -15,7 +15,10 @@ class Settings(BaseSettings):
     detection_classes: str = "0,2"
     max_detections: int = 100
 
-    # Extra delay after each processed frame; 0 means yield without extra delay.
+    # Maximum target inference frequency per camera (not a guaranteed FPS).
+    ai_target_fps: float = 2.0
+
+# Extra delay after each processed frame; normally keep at 0.0 when FPS-limited.
     ai_poll_interval: float = 0.0
     ai_camera_id: str = ""
 

@@ -2,6 +2,7 @@ import asyncio
 import json
 import logging
 import os
+import time
 from urllib.parse import urlsplit, urlunsplit
 
 import httpx
@@ -220,6 +221,21 @@ async def process_camera(camera: dict) -> None:
     rules = build_rules(camera, frame_width, frame_height)
     logger.info("Camera initialized camera=%s frame=%sx%s zones=%s", camera_name, frame_width, frame_height, len(rules))
 
+    # FPS cap is independent for each camera. Frames are still read from RTSP,
+    # but frames arriving before the next sampling time are skipped before YOLO.
+    target_fps = max(float(settings.ai_target_fps), 0.1)
+    min_detection_interval = 1.0 / target_fps
+    last_detection_time = 0.0
+    stats_window_started = time.monotonic()
+    stats_frames_processed = 0
+    stats_inference_seconds = 0.0
+    logger.info(
+        "Camera sampling configured camera=%s target_fps=%.2f interval_ms=%.0f",
+        camera_name,
+        target_fps,
+        min_detection_interval * 1000,
+    )
+
     while True:
         try:
             frame = await asyncio.to_thread(stream.read)
@@ -231,8 +247,48 @@ async def process_camera(camera: dict) -> None:
             await asyncio.sleep(0.5)
             continue
 
+        now = time.monotonic()
+        if now - last_detection_time < min_detection_interval:
+            continue
+
+        # Record the start time, so inference duration is included in the
+        # effective cadence if inference is slower than the configured target.
+        last_detection_time = now
+        inference_started = time.monotonic()
         detections = await asyncio.to_thread(detector.detect, frame)
-        logger.debug("Frame processed camera=%s detections=%s \ndetails:\n%s", camera_name, len(detections), json.dumps(detections, indent=2, default=str))
+        inference_seconds = time.monotonic() - inference_started
+        stats_frames_processed += 1
+        stats_inference_seconds += inference_seconds
+        logger.debug(
+            "Frame processed camera=%s detections=%s inference_ms=%.1f \ndetails:\n%s",
+            camera_name,
+            len(detections),
+            inference_seconds * 1000,
+            json.dumps(detections, indent=2, default=str),
+        )
+
+        stats_now = time.monotonic()
+        stats_elapsed = stats_now - stats_window_started
+        if stats_elapsed >= 60.0:
+            actual_fps = stats_frames_processed / stats_elapsed
+            average_inference_ms = (
+                stats_inference_seconds / stats_frames_processed * 1000
+                if stats_frames_processed
+                else 0.0
+            )
+            logger.info(
+                "Camera performance camera=%s actual_detection_fps=%.2f "
+                "frames=%s window_seconds=%.1f avg_inference_ms=%.1f target_fps=%.2f",
+                camera_name,
+                actual_fps,
+                stats_frames_processed,
+                stats_elapsed,
+                average_inference_ms,
+                target_fps,
+            )
+            stats_window_started = stats_now
+            stats_frames_processed = 0
+            stats_inference_seconds = 0.0
         for detection in detections:
             for rule in rules:
                 event_type = None
@@ -296,13 +352,14 @@ async def process_camera(camera: dict) -> None:
 async def main() -> None:
     logger.info(
         "AI engine starting model=%s confidence=%.2f imgsz=%s device=%s "
-        "tracker=%s classes=%s poll_interval=%.2f",
+        "tracker=%s classes=%s target_fps=%.2f poll_interval=%.2f",
         settings.model_path,
         settings.confidence,
         settings.image_size,
         settings.device,
         settings.tracker,
         settings.detection_classes,
+        settings.ai_target_fps,
         settings.ai_poll_interval,
     )
     cameras = [

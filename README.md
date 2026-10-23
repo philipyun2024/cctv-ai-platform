@@ -162,10 +162,10 @@ The AI Engine remains a native Windows Python process. It is **not** a Docker Co
 1. Install 64-bit Python 3.11 or 3.12 and create the `ai-engine/.venv` virtual environment.
 2. From `ai-engine`, install dependencies with `python -m pip install -r requirements.txt`.
 3. Run `python export.py` once to download `yolo26n.pt` and export `yolo26n_openvino_model` at 416-pixel input size.
-4. Keep the local `ai-engine/.env` file and change `MODEL_PATH=yolo26n_openvino_model`; set `IMAGE_SIZE=416`, `DEVICE=cpu`, `TRACKER=bytetrack.yaml`, and `DETECTION_CLASSES=0,2`.
+4. Keep the local `ai-engine/.env` file and change `MODEL_PATH=yolo26n_openvino_model`; set `IMAGE_SIZE=416`, `DEVICE=cpu`, `TRACKER=bytetrack.yaml`, `DETECTION_CLASSES=0,2`, and `AI_TARGET_FPS=2.0`.
 5. Start the engine with `python -m app.main`.
 
-`DETECTION_CLASSES=0,2` detects COCO person and car classes. Use `DETECTION_CLASSES=0` for person-only intrusion detection. ByteTrack maintains object IDs across frames; the existing polygon zone rules still decide whether an intrusion or loitering event occurs.
+`DETECTION_CLASSES=0,2` detects COCO person and car classes. Use `DETECTION_CLASSES=0` for person-only intrusion detection. ByteTrack maintains object IDs across sampled frames; the existing polygon zone rules still decide whether an intrusion or loitering event occurs. `AI_TARGET_FPS` caps the YOLO sampling rate per camera (default 2 FPS); it is a target cap, not a guaranteed processing rate. The AI Engine logs measured per-camera detection FPS and average inference time about once per minute.
 
 For CPU troubleshooting, first use one camera and a substream (for example 640x360 or 704x480), then check DEBUG logs. OpenVINO may improve CPU inference speed; actual FPS depends on stream resolution, camera count, and scene complexity. The code uses `asyncio.to_thread()` for stream reads and inference so one blocking read/inference is less likely to stall other async camera workers.
 
@@ -176,3 +176,15 @@ From the `ai-engine` directory: `python test_openvino.py path\to\test-image.jpg`
 ### Secret handling
 
 Do not commit `.env` files or real RTSP credentials. The source archive intentionally excludes local `.env` files and replaces sample camera URLs with placeholders. Preserve your own local `.env` separately and update only the model settings above.
+
+
+## V0.3.1 — Per-camera AI sampling rate
+
+Configure the Windows AI Engine in `ai-engine/.env`:
+
+```dotenv
+AI_TARGET_FPS=2.0
+AI_POLL_INTERVAL=0.0
+```
+
+The engine continues reading each RTSP stream but skips frames until that camera's next sampling interval. `AI_TARGET_FPS=2` means at most one YOLO inference every 0.5 seconds per camera when the engine can keep up. If inference is slower, actual FPS will be lower. The engine reports measured detection FPS and average inference time per camera approximately every 60 seconds. For four cameras, 2 FPS per camera corresponds to a target total of 8 inference frames per second.
