@@ -29,5 +29,8 @@ class EventCreate(BaseModel):
     timestamp: datetime
     track_id: int | None = None
     zone_id: str | None = None
+    # snapshot_base64 is retained for backward compatibility with V0.3.x clients.
     snapshot_base64: str | None = None
+    original_snapshot_base64: str | None = None
+    annotated_snapshot_base64: str | None = None
     metadata: dict[str, Any] = Field(default_factory=dict)

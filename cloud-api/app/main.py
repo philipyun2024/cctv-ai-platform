@@ -1,3 +1,4 @@
+import asyncio
 import logging
 import time
 from contextlib import asynccontextmanager
@@ -16,6 +17,7 @@ from .config import settings
 from .db import models  # noqa: F401
 from .db.database import Base, engine
 from .logging_config import configure_logging
+from .services.storage import cleanup_expired_snapshots
 
 configure_logging(settings.log_level, settings.debug_logging)
 logger = logging.getLogger(__name__)
@@ -38,14 +40,41 @@ async def lifespan(app: FastAPI):
         parents=True,
         exist_ok=True,
     )
+    # create_all does not add columns to existing tables; apply this additive
+    # migration so V0.3.x databases gain the annotated snapshot URL safely.
+    async with engine.begin() as connection:
+        await connection.execute(text(
+            "ALTER TABLE events ADD COLUMN IF NOT EXISTS "
+            "annotated_snapshot_url TEXT"
+        ))
     logger.info("Snapshot storage ready at %s", storage_path)
+    cleanup_task = asyncio.create_task(_snapshot_cleanup_loop())
     yield
+    cleanup_task.cancel()
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
     logger.info("Shutting down Cloud API")
+
+
+async def _snapshot_cleanup_loop():
+    """Run snapshot retention cleanup at startup and once per day."""
+    while True:
+        try:
+            deleted = await asyncio.to_thread(cleanup_expired_snapshots)
+            logger.info(
+                "Snapshot retention cleanup completed deleted=%s retention_days=%s",
+                deleted, settings.snapshot_retention_days,
+            )
+        except Exception:
+            logger.exception("Snapshot retention cleanup failed")
+        await asyncio.sleep(24 * 60 * 60)
 
 
 app = FastAPI(
     title="CCTV AI Cloud API",
-    version="0.2.2-debug",
+    version="0.4.0-snapshots",
     lifespan=lifespan,
 )
 
@@ -102,7 +131,7 @@ app.add_middleware(
 async def root():
     return {
         "name": "CCTV AI Cloud API",
-        "version": "0.2.2-debug",
+        "version": "0.4.0-snapshots",
         "status": "running",
     }
 

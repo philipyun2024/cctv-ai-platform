@@ -33,6 +33,7 @@ class CloudClient:
         zone_id,
         frame,
         metadata,
+        annotated_frame=None,
     ):
         payload = {
             "tenant_id": tenant_id,
@@ -43,7 +44,12 @@ class CloudClient:
             "track_id": track_id,
             "zone_id": zone_id,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "snapshot_base64": self.encode_frame(frame),
+            "original_snapshot_base64": self.encode_frame(frame),
+            "annotated_snapshot_base64": (
+                self.encode_frame(annotated_frame)
+                if annotated_frame is not None
+                else None
+            ),
             "metadata": metadata,
         }
         async with httpx.AsyncClient(timeout=15) as client:

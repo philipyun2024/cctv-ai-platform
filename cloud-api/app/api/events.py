@@ -35,7 +35,13 @@ async def create_event(
             confidence=payload.confidence,
             timestamp=payload.timestamp,
             track_id=payload.track_id,
-            snapshot_url=save_snapshot(payload.snapshot_base64),
+            snapshot_url=save_snapshot(
+                payload.original_snapshot_base64 or payload.snapshot_base64,
+                "original",
+            ),
+            annotated_snapshot_url=save_snapshot(
+                payload.annotated_snapshot_base64, "annotated"
+            ),
             event_metadata=payload.metadata,
         )
         db.add(event)
@@ -54,6 +60,7 @@ async def create_event(
             "event_id": str(event.id),
             "alarm_id": str(alarm.id) if alarm else None,
             "snapshot_url": event.snapshot_url,
+            "annotated_snapshot_url": event.annotated_snapshot_url,
         }
     except Exception:
         await db.rollback()

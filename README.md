@@ -192,3 +192,22 @@ AI_POLL_INTERVAL=0.0
 ```
 
 The engine continues reading each RTSP stream but skips frames until that camera's next sampling interval. `AI_TARGET_FPS=2` means at most one YOLO inference every 0.5 seconds per camera when the engine can keep up. If inference is slower, actual FPS will be lower. The engine reports measured detection FPS and average inference time per camera approximately every 60 seconds. For four cameras, 2 FPS per camera corresponds to a target total of 8 inference frames per second.
+
+
+## V0.4.0 — AI Detection Snapshots
+
+- On intrusion/loitering event submission, AI Engine sends both the original camera frame and an annotated frame with YOLO boxes, track IDs, confidence, and event label.
+- Cloud API stores JPEG/PNG snapshots under `STORAGE_PATH/snapshots` and returns separate `snapshot_url` and `annotated_snapshot_url` fields.
+- Dashboard displays both images in recent alarms and alarm details.
+- Snapshot retention defaults to 30 days; Cloud API cleans expired files at startup and every 24 hours.
+- Existing V0.3.x `snapshot_base64` clients remain supported as the original snapshot field.
+- Database startup adds the nullable `events.annotated_snapshot_url` column if it is missing. Existing event rows remain valid. The equivalent manual SQL is in `cloud-api/migrations/0001_add_annotated_snapshot_url.sql`.
+
+Cloud API environment settings:
+
+```dotenv
+SNAPSHOT_RETENTION_DAYS=30
+SNAPSHOT_MAX_BYTES=8388608
+```
+
+AI Engine remains a native Windows process and is not part of Docker Compose. For remote customer access, change `PUBLIC_BASE_URL` in `docker-compose.yml` to the externally reachable HTTPS Cloud API address; the default `localhost` URL is only suitable for local testing. Snapshot media is currently served by the API static-media route, so keep the API behind your trusted network/reverse proxy and do not expose it publicly without adding customer authentication/authorization.

@@ -17,3 +17,7 @@ yolo26n_openvino_model/
 ai-engine/yolo26n_openvino_model/
 yolo26n.pt
 ai-engine/yolo26n.pt
+
+# Local event snapshots and runtime storage
+cloud-api/storage/
+storage/

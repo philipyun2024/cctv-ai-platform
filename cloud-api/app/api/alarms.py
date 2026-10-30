@@ -13,17 +13,28 @@ router = APIRouter(prefix="/api/v1/alarms", tags=["alarms"])
 
 @router.get("")
 async def list_alarms(db: AsyncSession = Depends(get_db)):
-    result = await db.execute(select(Alarm).order_by(Alarm.triggered_at.desc()).limit(100))
-    return [
-        {
+    result = await db.execute(
+        select(Alarm, Event)
+        .join(Event, Event.id == Alarm.event_id)
+        .order_by(Alarm.triggered_at.desc())
+        .limit(100)
+    )
+    rows = []
+    for alarm, event in result.all():
+        rows.append({
             "id": str(alarm.id),
             "event_id": str(alarm.event_id),
             "severity": alarm.severity,
             "status": alarm.status,
             "triggered_at": alarm.triggered_at,
-        }
-        for alarm in result.scalars()
-    ]
+            "camera_id": str(event.camera_id),
+            "event_type": event.event_type,
+            "confidence": event.confidence,
+            "track_id": event.track_id,
+            "snapshot_url": event.snapshot_url,
+            "annotated_snapshot_url": event.annotated_snapshot_url,
+        })
+    return rows
 
 
 async def update_status(alarm_id: UUID, status: str, db: AsyncSession):
@@ -68,6 +79,7 @@ async def detail(alarm_id: UUID, db: AsyncSession = Depends(get_db)):
             "confidence": event.confidence,
             "timestamp": event.timestamp,
             "snapshot_url": event.snapshot_url,
+            "annotated_snapshot_url": event.annotated_snapshot_url,
             "metadata": event.event_metadata,
         },
     }

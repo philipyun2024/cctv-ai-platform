@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     )
     redis_url: str = "redis://localhost:6379/0"
     storage_path: str = "./storage"
+    snapshot_retention_days: int = 30
+    snapshot_max_bytes: int = 8 * 1024 * 1024
     public_base_url: str = "http://localhost:8000"
     cooldown_seconds: int = 300
     camera_config_path: str = "/app/app/config/cameras.example.yaml"

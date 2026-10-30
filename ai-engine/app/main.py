@@ -135,6 +135,32 @@ async def load_cameras() -> list[dict]:
         return cameras
 
 
+def build_annotated_snapshot(frame, detections, event_type: str):
+    """Draw detected objects and event label on a copy of the source frame."""
+    import cv2
+
+    annotated = frame.copy()
+    for detection in detections:
+        x1, y1 = int(detection.x1), int(detection.y1)
+        x2, y2 = int(detection.x2), int(detection.y2)
+        label = (
+            f"{detection.class_name} ID:{detection.track_id} "
+            f"{detection.confidence:.2f}"
+        )
+        cv2.rectangle(annotated, (x1, y1), (x2, y2), (0, 220, 0), 2)
+        cv2.putText(
+            annotated, label, (x1, max(20, y1 - 8)),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 220, 0), 1,
+            cv2.LINE_AA,
+        )
+    cv2.putText(
+        annotated, f"AI EVENT: {event_type.upper()}", (12, 28),
+        cv2.FONT_HERSHEY_SIMPLEX, 0.75, (0, 0, 255), 2,
+        cv2.LINE_AA,
+    )
+    return annotated
+
+
 def build_rules(
     camera: dict,
     frame_width: int,
@@ -326,8 +352,12 @@ async def process_camera(camera: dict) -> None:
                         track_id=detection.track_id,
                         zone_id=str(config["id"]),
                         frame=frame,
+                        annotated_frame=build_annotated_snapshot(
+                            frame, detections, event_type
+                        ),
                         metadata={
                             "class_name": detection.class_name,
+                            "snapshot_policy": "event_only",
                         },
                     )
                     logger.info("AI event submitted camera=%s type=%s event_id=%s alarm_id=%s", camera_name, event_type, result.get("event_id"), result.get("alarm_id"))

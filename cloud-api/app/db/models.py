@@ -48,7 +48,9 @@ class Event(Base):
     confidence: Mapped[float] = mapped_column(Float)
     track_id: Mapped[int | None] = mapped_column(Integer, nullable=True)
     timestamp: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    # Original camera frame and AI-annotated frame are stored separately.
     snapshot_url: Mapped[str | None] = mapped_column(Text, nullable=True)
+    annotated_snapshot_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     event_metadata: Mapped[dict] = mapped_column("metadata", JSONB, default=dict)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
 
