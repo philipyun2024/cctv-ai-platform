@@ -2,6 +2,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # Logging settings are loaded from the service .env or process environment.
+    log_level: str | None = None
+    debug_logging: bool = False
     cloud_api_url: str = "http://localhost:8000"
     cloud_api_key: str = "change-me"
 
@@ -17,8 +20,7 @@ class Settings(BaseSettings):
 
     # Maximum target inference frequency per camera (not a guaranteed FPS).
     ai_target_fps: float = 2.0
-
-# Extra delay after each processed frame; normally keep at 0.0 when FPS-limited.
+    # Extra delay after each processed frame; normally keep at 0.0 when FPS-limited.
     ai_poll_interval: float = 0.0
     ai_camera_id: str = ""
 
@@ -28,6 +30,7 @@ class Settings(BaseSettings):
     dw_username: str = ""
     dw_password: str = ""
     dw_verify_ssl: bool = False
+
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
 

@@ -178,6 +178,10 @@ From the `ai-engine` directory: `python test_openvino.py path\to\test-image.jpg`
 Do not commit `.env` files or real RTSP credentials. The source archive intentionally excludes local `.env` files and replaces sample camera URLs with placeholders. Preserve your own local `.env` separately and update only the model settings above.
 
 
+## V0.3.2 — Logging configuration fix
+
+`LOG_LEVEL` and `DEBUG_LOGGING` are now read through the service settings, so values in `ai-engine/.env` take effect when starting the AI Engine from the `ai-engine` directory. For example, set `LOG_LEVEL=DEBUG` to show debug logs, or `LOG_LEVEL=WARNING` to suppress INFO messages. Restart the process after changing the file. The Cloud API uses the same settings-based logging setup.
+
 ## V0.3.1 — Per-camera AI sampling rate
 
 Configure the Windows AI Engine in `ai-engine/.env`:

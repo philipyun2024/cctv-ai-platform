@@ -2,5 +2,6 @@
     "compareFolders.excludeFilter": [
         "/.env",
         "/config\\cameras.json"
-    ]
+    ],
+    "python.terminal.useEnvFile": true
 }

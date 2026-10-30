@@ -17,7 +17,7 @@ from .db import models  # noqa: F401
 from .db.database import Base, engine
 from .logging_config import configure_logging
 
-configure_logging()
+configure_logging(settings.log_level, settings.debug_logging)
 logger = logging.getLogger(__name__)
 
 

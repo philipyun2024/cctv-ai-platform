@@ -1,16 +1,17 @@
 import logging
-import os
 
 
-def configure_logging() -> None:
-    """Configure consistent, container-friendly application logging."""
-    default_level = (
-        "DEBUG"
-        if os.getenv("DEBUG_LOGGING", "false").lower() == "true"
-        else "INFO"
-    )
-    level_name = os.getenv("LOG_LEVEL", default_level).upper()
-    level = getattr(logging, level_name, logging.INFO)
+def configure_logging(
+    log_level: str | None = None,
+    debug_logging: bool = False,
+) -> None:
+    """Configure logging using settings loaded from .env or process environment."""
+    level_name = (log_level or ("DEBUG" if debug_logging else "INFO")).upper()
+    level = getattr(logging, level_name, None)
+    if not isinstance(level, int):
+        level = logging.INFO
+        level_name = "INFO"
+
     logging.basicConfig(
         level=level,
         format="%(asctime)s %(levelname)s [%(name)s] %(message)s",

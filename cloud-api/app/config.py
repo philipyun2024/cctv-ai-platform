@@ -2,6 +2,9 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
+    # Logging settings are loaded from the service .env or process environment.
+    log_level: str | None = None
+    debug_logging: bool = False
     database_url: str = (
         "postgresql+asyncpg://cctv:cctv_password@localhost:5432/cctv"
     )

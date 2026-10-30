@@ -18,7 +18,7 @@ from .rules.loitering import LoiteringDetector
 from .rules.zone import Zone
 from .logging_config import configure_logging
 
-configure_logging()
+configure_logging(settings.log_level, settings.debug_logging)
 logger = logging.getLogger(__name__)
 
 
